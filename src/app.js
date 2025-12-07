@@ -1,10 +1,11 @@
 import { auth, db } from './firebase-config.js';
+console.log("App.js initializing...");
 import {
     onAuthStateChanged,
     signInWithEmailAndPassword,
     createUserWithEmailAndPassword,
     signOut
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+} from "firebase/auth";
 import {
     collection,
     addDoc,
@@ -14,8 +15,19 @@ import {
     doc,
     updateDoc,
     deleteDoc,
+    setDoc,
     serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+} from "firebase/firestore";
+import {
+    getStorage,
+    ref,
+    uploadBytes,
+    getDownloadURL,
+    deleteObject
+} from "firebase/storage";
+
+// Initialize Storage
+const storage = getStorage();
 
 // State
 let currentUser = null;
@@ -56,17 +68,28 @@ onAuthStateChanged(auth, (user) => {
 
 document.getElementById('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = e.target.email.value;
-    const password = e.target.password.value;
+    console.log("Login form submitted");
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    console.log("Attempting login for:", email);
 
     try {
         await signInWithEmailAndPassword(auth, email, password);
+        console.log("Login successful");
     } catch (error) {
+        console.error("Login error:", error.code, error.message);
         if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
             try {
+                console.log("User not found or invalid credential, attempting registration...");
                 await createUserWithEmailAndPassword(auth, email, password);
+                console.log("Registration successful");
             } catch (createError) {
-                alert('注册失败: ' + createError.message);
+                console.error("Registration error:", createError.code, createError.message);
+                if (createError.code === 'auth/email-already-in-use') {
+                    alert('登录失败: 密码错误');
+                } else {
+                    alert('注册失败: ' + createError.message);
+                }
             }
         } else {
             alert('登录失败: ' + error.message);
@@ -114,7 +137,7 @@ function renderItems() {
 
         return `
             <li class="item-card ${statusClass}">
-                <div class="item-info" onclick="editItem('${item.id}')">
+                <div class="item-info" onclick="showDetails('${item.id}')">
                     <h4>${item.name}</h4>
                     <div class="item-meta">
                         ${item.category} | ${item.quantity} ${item.unit}
@@ -143,11 +166,7 @@ function renderShoppingList() {
     `).join('') : '<p style="text-align:center;color:#999;padding:2rem">暂无需要补货的物品</p>';
 }
 
-function updateStats() {
-    stats.total.textContent = items.length;
-    stats.low.textContent = items.filter(i => i.quantity <= i.threshold).length;
-    stats.expired.textContent = items.filter(i => i.expiry && new Date(i.expiry) < new Date()).length;
-}
+
 
 // Item Actions
 window.updateQuantity = async (id, change) => {
@@ -232,17 +251,114 @@ async function fetchMonthlyStats() {
 
 // Modal & Form
 const modal = document.getElementById('item-modal');
+const detailsModal = document.getElementById('details-modal');
 const form = document.getElementById('item-form');
+let selectedFiles = [];
+let existingAttachments = [];
+
+document.getElementById('item-files').addEventListener('change', (e) => {
+    const files = Array.from(e.target.files);
+    selectedFiles = [...selectedFiles, ...files];
+    renderFilePreviews();
+});
+
+function renderFilePreviews() {
+    const container = document.getElementById('file-preview-list');
+    container.innerHTML = '';
+
+    // Show existing attachments first
+    existingAttachments.forEach((att, index) => {
+        const div = document.createElement('div');
+        div.className = 'file-preview';
+        div.innerHTML = `
+            ${att.type.startsWith('image/') ? `<img src="${att.url}">` : '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:24px">📄</div>'}
+            <div class="remove-file" onclick="removeExistingAttachment(${index})">×</div>
+        `;
+        container.appendChild(div);
+    });
+
+    // Show new selected files
+    selectedFiles.forEach((file, index) => {
+        const div = document.createElement('div');
+        div.className = 'file-preview';
+        const isImg = file.type.startsWith('image/');
+
+        if (isImg) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                div.innerHTML = `<img src="${e.target.result}"><div class="remove-file" onclick="removeSelectedFile(${index})">×</div>`;
+            };
+            reader.readAsDataURL(file);
+        } else {
+            div.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:24px">📄</div><div class="remove-file" onclick="removeSelectedFile(${index})">×</div>`;
+        }
+        container.appendChild(div);
+    });
+}
+
+window.removeSelectedFile = (index) => {
+    selectedFiles.splice(index, 1);
+    renderFilePreviews();
+};
+
+window.removeExistingAttachment = (index) => {
+    existingAttachments.splice(index, 1);
+    renderFilePreviews();
+};
 
 document.getElementById('add-item-btn').addEventListener('click', () => {
     form.reset();
     document.getElementById('item-id').value = '';
+    selectedFiles = [];
+    existingAttachments = [];
+    renderFilePreviews();
     modal.classList.remove('hidden');
 });
 
 document.getElementById('cancel-btn').addEventListener('click', () => {
     modal.classList.add('hidden');
 });
+
+document.getElementById('close-details-btn').addEventListener('click', () => {
+    detailsModal.classList.add('hidden');
+});
+
+window.showDetails = (id) => {
+    const item = items.find(i => i.id === id);
+    document.getElementById('detail-name').textContent = item.name;
+    document.getElementById('detail-category').textContent = item.category;
+    document.getElementById('detail-quantity').textContent = item.quantity;
+    document.getElementById('detail-unit').textContent = item.unit;
+    document.getElementById('detail-threshold').textContent = item.threshold;
+    document.getElementById('detail-expiry').textContent = item.expiry || '无';
+
+    const filesContainer = document.getElementById('detail-files');
+    filesContainer.innerHTML = '';
+    if (item.attachments && item.attachments.length) {
+        item.attachments.forEach(att => {
+            const el = document.createElement('a');
+            el.className = 'attachment-item';
+            el.href = att.url;
+            el.target = '_blank';
+            el.innerHTML = `
+                <div class="attachment-thumb ${att.type.startsWith('image/') ? '' : 'doc'}">
+                    ${att.type.startsWith('image/') ? `<img src="${att.url}">` : '📄'}
+                </div>
+                <span>${att.name.length > 8 ? att.name.substring(0, 8) + '...' : att.name}</span>
+            `;
+            filesContainer.appendChild(el);
+        });
+    } else {
+        filesContainer.innerHTML = '<p style="color:#999;font-size:0.8rem">无附件</p>';
+    }
+
+    document.getElementById('edit-item-btn').onclick = () => {
+        detailsModal.classList.add('hidden');
+        editItem(id);
+    };
+
+    detailsModal.classList.remove('hidden');
+};
 
 window.editItem = (id) => {
     const item = items.find(i => i.id === id);
@@ -253,29 +369,72 @@ window.editItem = (id) => {
     document.getElementById('item-unit').value = item.unit;
     document.getElementById('item-threshold').value = item.threshold;
     document.getElementById('item-expiry').value = item.expiry || '';
+
+    selectedFiles = [];
+    existingAttachments = item.attachments || [];
+    renderFilePreviews();
     modal.classList.remove('hidden');
 };
 
 form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const id = document.getElementById('item-id').value;
-    const data = {
-        uid: currentUser.uid,
-        name: document.getElementById('item-name').value,
-        category: document.getElementById('item-category').value,
-        quantity: Number(document.getElementById('item-quantity').value),
-        unit: document.getElementById('item-unit').value,
-        threshold: Number(document.getElementById('item-threshold').value),
-        expiry: document.getElementById('item-expiry').value || null,
-        updatedAt: serverTimestamp()
-    };
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = '保存中...';
 
-    if (id) {
-        await updateDoc(doc(db, 'items', id), data);
-    } else {
-        await addDoc(collection(db, 'items'), { ...data, createdAt: serverTimestamp() });
+    try {
+        const id = document.getElementById('item-id').value;
+        let docRef;
+
+        if (id) {
+            docRef = doc(db, 'items', id);
+        } else {
+            docRef = doc(collection(db, 'items'));
+        }
+
+        // Upload new files
+        const newAttachments = [];
+        for (const file of selectedFiles) {
+            const storageRef = ref(storage, `users/${currentUser.uid}/${docRef.id}/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(snapshot.ref);
+            newAttachments.push({
+                name: file.name,
+                type: file.type,
+                url: url,
+                path: snapshot.ref.fullPath
+            });
+        }
+
+        const finalAttachments = [...existingAttachments, ...newAttachments];
+
+        const data = {
+            uid: currentUser.uid,
+            name: document.getElementById('item-name').value,
+            category: document.getElementById('item-category').value,
+            quantity: Number(document.getElementById('item-quantity').value),
+            unit: document.getElementById('item-unit').value,
+            threshold: Number(document.getElementById('item-threshold').value),
+            expiry: document.getElementById('item-expiry').value || null,
+            attachments: finalAttachments,
+            updatedAt: serverTimestamp()
+        };
+
+        if (id) {
+            await updateDoc(docRef, data);
+        } else {
+            await setDoc(docRef, { ...data, createdAt: serverTimestamp() });
+        }
+
+        modal.classList.add('hidden');
+    } catch (error) {
+        console.error("Error saving item:", error);
+        alert("保存失败: " + error.message);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
     }
-    modal.classList.add('hidden');
 });
 
 document.getElementById('search-input').addEventListener('input', renderItems);

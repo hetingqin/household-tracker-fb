@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>家庭日用品追踪</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/src/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 
@@ -14,14 +14,14 @@
         <!-- Auth View -->
         <div id="auth-view" class="view">
             <div class="auth-container">
-                <h1>家庭日用品追踪</h1>
+                <h1>家庭日用品追踪 (Debug)</h1>
                 <p class="subtitle">智能管理您的家庭库存</p>
                 <form id="login-form">
                     <div class="input-group">
-                        <input type="email" id="email" placeholder="邮箱" required>
+                        <input type="email" id="email" name="email" placeholder="邮箱" required>
                     </div>
                     <div class="input-group">
-                        <input type="password" id="password" placeholder="密码" required>
+                        <input type="password" id="password" name="password" placeholder="密码" required>
                     </div>
                     <button type="submit" class="primary-btn">登录 / 注册</button>
                     <p class="hint">如果是新用户，我们将自动为您创建账号</p>
@@ -127,6 +127,11 @@
                         <input type="date" id="item-expiry">
                     </div>
                 </div>
+                <div class="form-group">
+                    <label>附件 (照片/发票/保修单)</label>
+                    <input type="file" id="item-files" multiple accept="image/*,.pdf">
+                    <div id="file-preview-list" class="file-list"></div>
+                </div>
                 <div class="actions">
                     <button type="button" id="cancel-btn" class="secondary-btn">取消</button>
                     <button type="submit" class="primary-btn">保存</button>
@@ -135,7 +140,33 @@
         </div>
     </div>
 
-    <script type="module" src="app.js"></script>
+    <div id="details-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="detail-name"></h3>
+                <button id="close-details-btn" class="icon-btn close-btn">×</button>
+            </div>
+            <div class="detail-body">
+                <div class="detail-info">
+                    <p><strong>分类:</strong> <span id="detail-category"></span></p>
+                    <p><strong>数量:</strong> <span id="detail-quantity"></span> <span id="detail-unit"></span></p>
+                    <p><strong>阈值:</strong> <span id="detail-threshold"></span></p>
+                    <p><strong>保质期:</strong> <span id="detail-expiry"></span></p>
+                </div>
+                <div class="detail-attachments">
+                    <h4>附件</h4>
+                    <div id="detail-files" class="file-grid">
+                        <!-- Attachments will be injected here -->
+                    </div>
+                </div>
+            </div>
+            <div class="actions">
+                <button id="edit-item-btn" class="primary-btn">编辑</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/app.js"></script>
 </body>
 
 </html>
