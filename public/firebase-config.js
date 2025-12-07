@@ -1,0 +1,18 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyCI2a-zAVjL4hZExyHAUH_GBjYSBLMNskM",
+    authDomain: "household-tracker-e3c57.firebaseapp.com",
+    projectId: "household-tracker-e3c57",
+    storageBucket: "household-tracker-e3c57.firebasestorage.app",
+    messagingSenderId: "1080198640218",
+    appId: "1:1080198640218:web:befec98417a6e72a725e63"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+export { auth, db };
