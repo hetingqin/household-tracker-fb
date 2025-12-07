@@ -153,8 +153,82 @@ function updateStats() {
 window.updateQuantity = async (id, change) => {
     const item = items.find(i => i.id === id);
     const newQty = Math.max(0, item.quantity + change);
+
+    // Optimistic update
+    // (Optional: could update local state immediately for better UX, but Firestore listener handles it fast enough)
+
+    const batch = db.batch(); // Use batch if we were doing multiple writes, but here we do separate asyncs or just one.
+    // Actually, let's just do them.
+
     await updateDoc(doc(db, 'items', id), { quantity: newQty });
+
+    // Log the change
+    if (change !== 0) {
+        await addDoc(collection(db, 'logs'), {
+            uid: currentUser.uid,
+            itemId: id,
+            itemName: item.name,
+            change: change,
+            timestamp: serverTimestamp()
+        });
+    }
 };
+
+// Stats Logic
+function updateStats() {
+    // Basic counters
+    stats.total.textContent = items.length;
+    stats.low.textContent = items.filter(i => i.quantity <= i.threshold).length;
+    stats.expired.textContent = items.filter(i => i.expiry && new Date(i.expiry) < new Date()).length;
+
+    // Fetch logs for advanced stats (simple implementation: just listen to recent logs or fetch once)
+    // For MVP, let's just show a simple "Top Consumed" based on local calculation if we had history.
+    // Since we just started logging, we might not have much data. 
+    // Let's add a real-time listener for logs to show "Recent Activity" or similar.
+
+    // For now, let's keep it simple as requested: "Simple chart display"
+    // We can add a "Monthly Consumption" section to the dashboard if we fetch logs.
+    // Let's add a function to fetch stats when Dashboard loads.
+    fetchMonthlyStats();
+}
+
+async function fetchMonthlyStats() {
+    // Fetch recent logs (client-side sort to avoid index creation)
+    const q = query(
+        collection(db, 'logs'),
+        where('uid', '==', currentUser.uid)
+    );
+
+    const unsubscribeLogs = onSnapshot(q, (snapshot) => {
+        const logs = snapshot.docs.map(doc => doc.data())
+            .sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))
+            .slice(0, 10); // Show last 10 activities
+
+        const activityList = document.getElementById('activity-list');
+        if (activityList) {
+            activityList.innerHTML = logs.map(log => {
+                const date = log.timestamp ? new Date(log.timestamp.seconds * 1000) : new Date();
+                const timeStr = `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+                const isConsumption = log.change < 0;
+                const changeClass = isConsumption ? 'negative' : 'positive';
+                const changeText = isConsumption ? `消耗 ${Math.abs(log.change)}` : `补充 ${log.change}`;
+
+                return `
+                    <li>
+                        <span>${log.itemName}</span>
+                        <span class="change ${changeClass}">${changeText}</span>
+                        <span class="time">${timeStr}</span>
+                    </li>
+                `;
+            }).join('');
+
+            if (logs.length === 0) {
+                activityList.innerHTML = '<li style="color:#999; justify-content:center;">暂无动态</li>';
+            }
+        }
+    });
+}
+
 
 // Modal & Form
 const modal = document.getElementById('item-modal');

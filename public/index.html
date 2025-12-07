@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
+
 <body>
     <div id="app">
         <!-- Auth View -->
@@ -33,7 +35,7 @@
                 <h2>我的家</h2>
                 <button id="logout-btn" class="text-btn">退出</button>
             </header>
-            
+
             <section id="stats-panel" class="stats-panel">
                 <div class="stat-card">
                     <span class="stat-value" id="stat-total-items">0</span>
@@ -48,6 +50,14 @@
                     <span class="stat-label">已过期</span>
                 </div>
             </section>
+
+            <section class="recent-activity">
+                <h3>最近动态</h3>
+                <ul id="activity-list">
+                    <!-- Activity logs -->
+                </ul>
+            </section>
+
 
             <nav class="tabs">
                 <button class="tab-btn active" data-tab="inventory">库存列表</button>
@@ -127,4 +137,5 @@
 
     <script type="module" src="app.js"></script>
 </body>
+
 </html>
